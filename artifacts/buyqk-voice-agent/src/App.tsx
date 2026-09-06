@@ -555,6 +555,8 @@ type WorkspaceProps = {
 };
 
 function WorkspaceView(props: WorkspaceProps) {
+  const hasProductContext = props.searchTerm.trim().length > 0;
+
   return (
     <div className="view-wrap">
       <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
@@ -685,9 +687,13 @@ function WorkspaceView(props: WorkspaceProps) {
             <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
               <div>
                 <div className="eyebrow">Act · product shelf</div>
-                <h3 className="mt-1 text-[16px] font-extrabold tracking-[-0.03em] text-[#2c3048]">Matches for your current context</h3>
+                <h3 className="mt-1 text-[16px] font-extrabold tracking-[-0.03em] text-[#2c3048]">
+                  {hasProductContext ? 'Matches for your current context' : 'Browse the product shelf'}
+                </h3>
               </div>
-              <span className="text-[10px] font-semibold text-[#9098ab]">Updated just now</span>
+              <span className="text-[10px] font-semibold text-[#9098ab]">
+                {hasProductContext ? 'Updated just now' : 'Ready when you are'}
+              </span>
             </div>
             <div className="mt-4 flex items-center gap-2 rounded-xl border border-[#e0e3ed] bg-[#fafbfe] p-1.5">
               <Search className="ml-2 text-[#929bb0]" size={15} />
