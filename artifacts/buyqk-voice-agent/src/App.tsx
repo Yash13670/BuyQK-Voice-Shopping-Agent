@@ -100,7 +100,7 @@ const responseCopy: Record<
   english: {
     listening: 'I’m listening. Tell me what you need, in your own words.',
     paused: 'I’ve paused the session. Tap the signal when you’re ready to continue.',
-    headphone: 'That sounds like the QuietCore Studio match I remembered. I’ve kept your $250 ceiling and comfort preference in view.',
+    headphone: 'That sounds like the QuietCore Studio match I remembered. I’ve kept your ₹20,000 ceiling and comfort preference in view.',
     cart: 'Your cart is ready. I’ll ask before placing any order.',
     fallback: 'Got it. I’ll use that as context while I narrow down the next best options.',
   },
@@ -127,7 +127,7 @@ const products: Product[] = [
     id: 'quietcore',
     name: 'QuietCore Studio',
     detail: 'Adaptive noise-canceling headphones',
-    price: 189,
+    price: 15999,
     rating: '4.8',
     art: 'green',
     icon: Headphones,
@@ -136,7 +136,7 @@ const products: Product[] = [
     id: 'airbook',
     name: 'AirBook 14',
     detail: 'Lightweight laptop · 16GB memory',
-    price: 849,
+    price: 69999,
     rating: '4.7',
     art: 'blue',
     icon: Laptop,
@@ -145,7 +145,7 @@ const products: Product[] = [
     id: 'tempo',
     name: 'Tempo Loop',
     detail: 'Minimal fitness watch · graphite',
-    price: 129,
+    price: 10999,
     rating: '4.6',
     art: 'orange',
     icon: Watch,
@@ -153,7 +153,11 @@ const products: Product[] = [
 ];
 
 function formatPrice(value: number) {
-  return `$${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 0,
+  }).format(value);
 }
 
 function nowTime() {
