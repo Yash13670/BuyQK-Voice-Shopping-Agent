@@ -87,10 +87,10 @@ type SpeechWindow = Window & {
   webkitSpeechRecognition?: new () => BrowserRecognition;
 };
 
-const voiceLanguages: Record<VoiceLanguage, { label: string; speechLang: string }> = {
-  english: { label: 'English', speechLang: 'en-IN' },
-  hindi: { label: 'हिन्दी', speechLang: 'hi-IN' },
-  hinglish: { label: 'Hinglish', speechLang: 'en-IN' },
+const voiceLanguages: Record<VoiceLanguage, { label: string; recognitionLang: string; speechLang: string }> = {
+  english: { label: 'English', recognitionLang: 'en-IN', speechLang: 'en-IN' },
+  hindi: { label: 'हिन्दी', recognitionLang: 'hi-IN', speechLang: 'hi-IN' },
+  hinglish: { label: 'Hinglish', recognitionLang: 'en-IN', speechLang: 'hi-IN' },
 };
 
 const responseCopy: Record<
@@ -253,11 +253,11 @@ function Home() {
     addMessage('you', clean);
     setDraft('');
     window.setTimeout(() => {
-      const respond = (text: string) => {
+      const respond = (text: string, speechText = text) => {
         addMessage('agent', text);
         if (fromVoice) {
           window.speechSynthesis?.cancel();
-          const utterance = new SpeechSynthesisUtterance(text);
+          const utterance = new SpeechSynthesisUtterance(speechText);
           utterance.lang = voiceLanguages[languageRef.current].speechLang;
           utterance.rate = 1.03;
           utterance.pitch = 1;
@@ -279,7 +279,10 @@ function Home() {
         if (currentLanguage === 'hindi') {
           respond(`${productMatch.name} आपके लिए शेल्फ पर दिखा दिया है। आप इसे कार्ट में जोड़ सकते हैं।`);
         } else if (currentLanguage === 'hinglish') {
-          respond(`${productMatch.name} shelf par show kar diya hai. Aap ise cart mein add kar sakte hain.`);
+          respond(
+            `${productMatch.name} shelf par show kar diya hai. Aap ise cart mein add kar sakte hain.`,
+            `${productMatch.name} शेल्फ पर शो कर दिया है। आप इसे कार्ट में ऐड कर सकते हैं।`,
+          );
         } else {
           respond(`${productMatch.name} is now showing on the shelf. You can add it to your cart when you’re ready.`);
         }
@@ -309,7 +312,7 @@ function Home() {
     const recognition = new recognitionConstructor();
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.lang = voiceLanguages[language].speechLang;
+    recognition.lang = voiceLanguages[language].recognitionLang;
     recognition.onresult = (event) => {
       let interim = '';
       let finalText = '';
@@ -361,7 +364,7 @@ function Home() {
     languageRef.current = nextLanguage;
     setLanguage(nextLanguage);
     if (recognitionRef.current) {
-      recognitionRef.current.lang = voiceLanguages[nextLanguage].speechLang;
+      recognitionRef.current.lang = voiceLanguages[nextLanguage].recognitionLang;
     }
     setToast(`${voiceLanguages[nextLanguage].label} voice selected`);
   };
