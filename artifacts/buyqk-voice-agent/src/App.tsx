@@ -221,7 +221,7 @@ function Home() {
     setMessages((current) => [...current, { id: Date.now(), role, text, time: nowTime() }]);
   };
 
-  const toggleListening = async () => {
+  const toggleListening = () => {
     if (isListening) {
       keepListeningRef.current = false;
       recognitionRef.current?.stop();
@@ -234,28 +234,6 @@ function Home() {
     }
     if (!speechSupported || !recognitionRef.current) {
       setToast('Live voice is not supported here — use text fallback');
-      return;
-    }
-
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setToast('This preview cannot access a microphone — allow mic access or use text fallback');
-      return;
-    }
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true },
-      });
-      stream.getTracks().forEach((track) => track.stop());
-    } catch (error) {
-      const reason = error instanceof DOMException ? error.name : '';
-      if (reason === 'NotAllowedError' || reason === 'SecurityError') {
-        setToast('Microphone access is blocked — allow it in browser site settings, then try again');
-      } else if (reason === 'NotFoundError' || reason === 'DevicesNotFoundError') {
-        setToast('No microphone was found — connect one or use text fallback');
-      } else {
-        setToast('Microphone could not start — check browser permissions and try again');
-      }
       return;
     }
 
