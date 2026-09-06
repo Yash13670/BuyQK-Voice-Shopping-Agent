@@ -1,8 +1,7 @@
-import { type ReactNode, useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity,
   ArrowRight,
-  Bell,
   Check,
   CircleHelp,
   Clock3,
@@ -21,7 +20,6 @@ import {
   Sparkles,
   Square,
   Trash2,
-  UserRound,
   Volume2,
   Watch,
   Zap,
@@ -33,7 +31,6 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
 import { Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
 
-type View = 'workspace' | 'activity' | 'settings';
 type Role = 'agent' | 'you';
 
 type Product = {
@@ -56,6 +53,37 @@ type Message = {
   role: Role;
   text: string;
   time: string;
+};
+
+type SpeechRecognitionResult = {
+  isFinal: boolean;
+  0?: { transcript?: string };
+};
+
+type SpeechRecognitionResultList = {
+  length: number;
+  [index: number]: SpeechRecognitionResult;
+};
+
+type BrowserRecognitionEvent = {
+  resultIndex: number;
+  results: SpeechRecognitionResultList;
+};
+
+type BrowserRecognition = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((event: BrowserRecognitionEvent) => void) | null;
+  onerror: ((event: { error: string }) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+
+type SpeechWindow = Window & {
+  SpeechRecognition?: new () => BrowserRecognition;
+  webkitSpeechRecognition?: new () => BrowserRecognition;
 };
 
 const queryClient = new QueryClient();
@@ -142,8 +170,9 @@ function App() {
 }
 
 function Home() {
-  const [activeView, setActiveView] = useState<View>('workspace');
   const [isListening, setIsListening] = useState(false);
+  const [interimTranscript, setInterimTranscript] = useState('');
+  const [speechSupported, setSpeechSupported] = useState(true);
   const [draft, setDraft] = useState('');
   const [searchTerm, setSearchTerm] = useState('comfortable noise-canceling headphones');
   const [searching, setSearching] = useState(false);
@@ -153,10 +182,9 @@ function Home() {
   const [cart, setCart] = useState<CartItem[]>([{ product: products[0], quantity: 1 }]);
   const [checkoutRequested, setCheckoutRequested] = useState(false);
   const [orderConfirmed, setOrderConfirmed] = useState(false);
-  const [memoryEnabled, setMemoryEnabled] = useState(true);
-  const [autoRead, setAutoRead] = useState(false);
   const [toast, setToast] = useState('');
-  const [sessionCount, setSessionCount] = useState(12);
+  const recognitionRef = useRef<BrowserRecognition | null>(null);
+  const keepListeningRef = useRef(false);
 
   const cartCount = useMemo(() => cart.reduce((sum, item) => sum + item.quantity, 0), [cart]);
   const cartTotal = useMemo(
@@ -176,37 +204,121 @@ function Home() {
 
   const toggleListening = () => {
     if (isListening) {
+      keepListeningRef.current = false;
+      recognitionRef.current?.stop();
       setIsListening(false);
+      setInterimTranscript('');
+      window.speechSynthesis?.cancel();
       addMessage('agent', 'I’ve paused the session. Tap the signal when you’re ready to continue.');
       setToast('Voice session paused');
       return;
     }
+    if (!speechSupported || !recognitionRef.current) {
+      setToast('Live voice is not supported here — use text fallback');
+      return;
+    }
+    keepListeningRef.current = true;
     setIsListening(true);
     addMessage('agent', 'I’m listening. Tell me what you need, in your own words.');
     setToast('BuyQK is listening');
+    try {
+      recognitionRef.current.start();
+    } catch {
+      setToast('The microphone is already warming up');
+    }
   };
 
-  const sendMessage = (value: string) => {
+  const sendMessage = (value: string, fromVoice = false) => {
     const clean = value.trim();
     if (!clean) return;
     addMessage('you', clean);
     setDraft('');
     window.setTimeout(() => {
+      const respond = (text: string) => {
+        addMessage('agent', text);
+        if (fromVoice) {
+          window.speechSynthesis?.cancel();
+          const utterance = new SpeechSynthesisUtterance(text);
+          utterance.rate = 1.03;
+          utterance.pitch = 1;
+          window.speechSynthesis?.speak(utterance);
+        }
+      };
       const lower = clean.toLowerCase();
       if (lower.includes('headphone') || lower.includes('flight') || lower.includes('quiet')) {
-        addMessage(
-          'agent',
+        respond(
           'That sounds like the QuietCore Studio match I remembered. I’ve kept your $250 ceiling and comfort preference in view.',
         );
         setSearchTerm('comfortable noise-canceling headphones');
       } else if (lower.includes('cart') || lower.includes('checkout')) {
-        addMessage('agent', 'Your cart is ready. I’ll ask before placing any order.');
+        respond('Your cart is ready. I’ll ask before placing any order.');
         setCheckoutRequested(true);
       } else {
-        addMessage('agent', 'Got it. I’ll use that as context while I narrow down the next best options.');
+        respond('Got it. I’ll use that as context while I narrow down the next best options.');
       }
-    }, 420);
+    }, fromVoice ? 280 : 420);
   };
+
+  useEffect(() => {
+    const recognitionConstructor =
+      (window as SpeechWindow).SpeechRecognition ??
+      (window as SpeechWindow).webkitSpeechRecognition;
+
+    if (!recognitionConstructor) {
+      setSpeechSupported(false);
+      return;
+    }
+
+    const recognition = new recognitionConstructor();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-IN';
+    recognition.onresult = (event) => {
+      let interim = '';
+      let finalText = '';
+
+      for (let index = event.resultIndex; index < event.results.length; index += 1) {
+        const result = event.results[index];
+        const transcript = result[0]?.transcript ?? '';
+        if (result.isFinal) finalText += transcript;
+        else interim += transcript;
+      }
+
+      setInterimTranscript(interim.trim());
+      if (finalText.trim()) {
+        setInterimTranscript('');
+        sendMessage(finalText, true);
+      }
+    };
+    recognition.onerror = (event) => {
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        keepListeningRef.current = false;
+        setIsListening(false);
+        setToast('Microphone access is blocked — use text fallback');
+      } else {
+        setToast('Voice input had a hiccup — keep speaking or try again');
+      }
+    };
+    recognition.onend = () => {
+      if (keepListeningRef.current) {
+        try {
+          recognition.start();
+        } catch {
+          // The browser may still be closing the previous audio session.
+        }
+      } else {
+        setIsListening(false);
+        setInterimTranscript('');
+      }
+    };
+    recognitionRef.current = recognition;
+
+    return () => {
+      keepListeningRef.current = false;
+      recognition.stop();
+      window.speechSynthesis?.cancel();
+    };
+  }, []);
 
   const runSearch = () => {
     if (!searchTerm.trim()) {
@@ -272,18 +384,17 @@ function Home() {
   };
 
   const clearSession = () => {
+    keepListeningRef.current = false;
+    recognitionRef.current?.stop();
+    setIsListening(false);
+    setInterimTranscript('');
+    window.speechSynthesis?.cancel();
     setMessages([]);
     setCart([]);
     setCheckoutRequested(false);
     setOrderConfirmed(false);
     setToast('Session cleared');
   };
-
-  const navItems: { id: View; label: string; icon: typeof Activity }[] = [
-    { id: 'workspace', label: 'Workspace', icon: Sparkles },
-    { id: 'activity', label: 'Activity', icon: Activity },
-    { id: 'settings', label: 'Settings', icon: Settings2 },
-  ];
 
   return (
     <div className="app-shell flex">
@@ -298,51 +409,22 @@ function Home() {
           </div>
         </div>
 
-        <div className="sidebar-label mt-12 px-2">Your command center</div>
-        <nav className="sidebar-nav mt-3 flex flex-col gap-1.5" aria-label="Main navigation">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <button
-                key={item.id}
-                className={`nav-item flex items-center gap-3 rounded-xl px-3 py-3 text-left text-[13px] font-semibold ${activeView === item.id ? 'active' : ''}`}
-                data-testid={`button-nav-${item.id}`}
-                onClick={() => setActiveView(item.id)}
-              >
-                <Icon size={16} strokeWidth={1.8} />
-                <span>{item.label}</span>
-                {item.id === 'workspace' && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-current opacity-60" />}
-              </button>
-            );
-          })}
-        </nav>
+        <div className="sidebar-label mt-12 px-2">Live voice agent</div>
+        <div className="nav-item active mt-3 flex items-center gap-3 rounded-xl px-3 py-3 text-[13px] font-semibold">
+          <Mic size={16} strokeWidth={1.8} />
+          <span>Voice workspace</span>
+          <span className="ml-auto h-1.5 w-1.5 rounded-full bg-current opacity-60" />
+        </div>
 
         <div className="sidebar-bottom mt-auto">
           <div className="status-card p-3.5">
             <div className="flex items-center gap-2">
               <span className="signal-dot" />
-              <span className="text-[12px] font-bold text-[#d6fff3]">Memory is on</span>
+              <span className="text-[12px] font-bold text-[#d6fff3]">Live loop ready</span>
             </div>
             <p className="mt-2 text-[11px] leading-5 text-[#9eb3b1]">
-              BuyQK remembers useful preferences, never private payment details.
+              Speak naturally and see the transcript update in real time. No account required.
             </p>
-            <button
-              className="mt-3 flex items-center gap-1.5 text-[11px] font-bold text-[#70e7c2] transition hover:text-white"
-              data-testid="button-open-memory-settings"
-              onClick={() => setActiveView('settings')}
-            >
-              Review memory <ArrowRight size={12} />
-            </button>
-          </div>
-          <div className="mt-5 flex items-center gap-3 border-t border-white/10 pt-4">
-            <div className="grid h-8 w-8 place-items-center rounded-full bg-[#4d5275] text-[11px] font-bold text-white">AM</div>
-            <div className="min-w-0">
-              <div className="truncate text-[12px] font-bold text-white">Alex Morgan</div>
-              <div className="truncate text-[11px] text-[#8e96af]">Personal shopper</div>
-            </div>
-            <button className="ml-auto text-[#8992ad] transition hover:text-white" data-testid="button-profile-menu" aria-label="Open profile menu">
-              <MoreHorizontal size={17} />
-            </button>
           </div>
         </div>
       </aside>
@@ -351,64 +433,49 @@ function Home() {
         <header className="topbar flex items-center justify-between px-5 sm:px-8">
           <div className="flex min-w-0 items-center gap-3">
             <div className="hidden h-8 w-8 place-items-center rounded-lg bg-[#e2e4fb] text-[#555681] sm:grid">
-              {activeView === 'workspace' ? <Sparkles size={15} /> : activeView === 'activity' ? <Activity size={15} /> : <Settings2 size={15} />}
+              <Mic size={15} />
             </div>
             <div className="min-w-0">
-              <div className="eyebrow truncate">BuyQK / {activeView}</div>
-              <h1 className="mt-1 truncate text-[16px] font-extrabold tracking-[-0.03em] text-[#282c45]">
-                {activeView === 'workspace' ? 'Voice shopping workspace' : activeView === 'activity' ? 'Session activity' : 'Assistant settings'}
-              </h1>
+              <div className="eyebrow truncate">BuyQK / live voice</div>
+              <h1 className="mt-1 truncate text-[16px] font-extrabold tracking-[-0.03em] text-[#282c45]">Real-time voice agent</h1>
             </div>
           </div>
           <div className="flex items-center gap-2.5">
             <div className="hidden items-center gap-2 rounded-full border border-[#dce1ec] bg-white/65 px-3 py-1.5 text-[10px] font-bold text-[#657087] sm:flex">
               <span className="signal-dot scale-75" />
-              PRIVATE BETA
-            </div>
-            <button className="ghost-button grid h-9 w-9 place-items-center rounded-xl" data-testid="button-notifications" aria-label="View notifications">
-              <Bell size={16} />
-            </button>
-            <div className="grid h-9 w-9 place-items-center rounded-full bg-[#e8e7ff] text-[#555681]" data-testid="avatar-user">
-              <UserRound size={16} />
+              {speechSupported ? 'LIVE AUDIO READY' : 'TEXT FALLBACK'}
             </div>
           </div>
         </header>
 
-        {activeView === 'workspace' && (
-          <WorkspaceView
-            isListening={isListening}
-            toggleListening={toggleListening}
-            messages={messages}
-            draft={draft}
-            setDraft={setDraft}
-            sendMessage={sendMessage}
-            searchTerm={searchTerm}
-            setSearchTerm={setSearchTerm}
-            searching={searching}
-            searchError={searchError}
-            runSearch={runSearch}
-            resultProducts={resultProducts}
-            addToCart={addToCart}
-            cart={cart}
-            cartCount={cartCount}
-            cartTotal={cartTotal}
-            changeQuantity={changeQuantity}
-            checkoutRequested={checkoutRequested}
-            orderConfirmed={orderConfirmed}
-            requestCheckout={requestCheckout}
-            confirmOrder={confirmOrder}
-            setCheckoutRequested={setCheckoutRequested}
-            clearSession={clearSession}
-            toast={toast}
-            autoRead={autoRead}
-          />
-        )}
-        {activeView === 'activity' && (
-          <ActivityView sessionCount={sessionCount} setSessionCount={setSessionCount} toast={toast} setToast={setToast} />
-        )}
-        {activeView === 'settings' && (
-          <SettingsView memoryEnabled={memoryEnabled} setMemoryEnabled={setMemoryEnabled} autoRead={autoRead} setAutoRead={setAutoRead} />
-        )}
+        <WorkspaceView
+          isListening={isListening}
+          toggleListening={toggleListening}
+          interimTranscript={interimTranscript}
+          speechSupported={speechSupported}
+          messages={messages}
+          draft={draft}
+          setDraft={setDraft}
+          sendMessage={sendMessage}
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          searching={searching}
+          searchError={searchError}
+          runSearch={runSearch}
+          resultProducts={resultProducts}
+          addToCart={addToCart}
+          cart={cart}
+          cartCount={cartCount}
+          cartTotal={cartTotal}
+          changeQuantity={changeQuantity}
+          checkoutRequested={checkoutRequested}
+          orderConfirmed={orderConfirmed}
+          requestCheckout={requestCheckout}
+          confirmOrder={confirmOrder}
+          setCheckoutRequested={setCheckoutRequested}
+          clearSession={clearSession}
+          toast={toast}
+        />
       </main>
     </div>
   );
@@ -417,6 +484,8 @@ function Home() {
 type WorkspaceProps = {
   isListening: boolean;
   toggleListening: () => void;
+  interimTranscript: string;
+  speechSupported: boolean;
   messages: Message[];
   draft: string;
   setDraft: (value: string) => void;
@@ -439,7 +508,6 @@ type WorkspaceProps = {
   setCheckoutRequested: (value: boolean) => void;
   clearSession: () => void;
   toast: string;
-  autoRead: boolean;
 };
 
 function WorkspaceView(props: WorkspaceProps) {
@@ -492,7 +560,7 @@ function WorkspaceView(props: WorkspaceProps) {
             <div className="relative z-[1] mt-7 flex flex-wrap items-center gap-2 border-t border-white/10 pt-4 text-[10px] text-[#98a2bd]">
               <span className="flex items-center gap-1.5"><ShieldCheck size={12} className="text-[#70e7c2]" /> Confirmation gates on</span>
               <span className="text-[#626b87]">·</span>
-              <span className="flex items-center gap-1.5"><Volume2 size={12} /> {props.autoRead ? 'Auto-read on' : 'Text fallback ready'}</span>
+              <span className="flex items-center gap-1.5"><Volume2 size={12} /> {props.speechSupported ? 'Voice replies on' : 'Text fallback ready'}</span>
             </div>
           </section>
 
@@ -527,6 +595,20 @@ function WorkspaceView(props: WorkspaceProps) {
                   <p className="mt-1 text-[11px] text-[#9aa2b3]">Start speaking or type a thought below.</p>
                 </div>
               )}
+              {props.interimTranscript && (
+                <div className="transcript-row" data-testid="transcript-interim">
+                  <div className="transcript-avatar you">YOU</div>
+                  <div className="min-w-0">
+                    <div className="mb-1 flex items-center gap-2">
+                      <span className="text-[11px] font-extrabold text-[#4f5870]">Listening live</span>
+                      <span className="live-wave" aria-hidden="true"><i /><i /><i /></span>
+                    </div>
+                    <div className="transcript-bubble interim-bubble px-3.5 py-2.5 text-[12px] leading-5">
+                      {props.interimTranscript}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
             <form className="composer mt-5 flex items-center gap-2 rounded-xl p-1.5 pl-3" onSubmit={(event) => { event.preventDefault(); props.sendMessage(props.draft); }}>
               <input
@@ -534,7 +616,7 @@ function WorkspaceView(props: WorkspaceProps) {
                 data-testid="input-message-fallback"
                 value={props.draft}
                 onChange={(event) => props.setDraft(event.target.value)}
-                placeholder="Type a message instead…"
+                placeholder="Type a message instead of speaking…"
                 aria-label="Type a message instead"
               />
               <button className="primary-button grid h-9 w-9 place-items-center rounded-lg" data-testid="button-send-message" aria-label="Send message" type="submit">
