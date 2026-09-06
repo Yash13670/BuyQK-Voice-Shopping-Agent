@@ -221,7 +221,7 @@ function Home() {
     setMessages((current) => [...current, { id: Date.now(), role, text, time: nowTime() }]);
   };
 
-  const toggleListening = () => {
+  const toggleListening = async () => {
     if (isListening) {
       keepListeningRef.current = false;
       recognitionRef.current?.stop();
@@ -236,6 +236,29 @@ function Home() {
       setToast('Live voice is not supported here — use text fallback');
       return;
     }
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setToast('This preview cannot access a microphone — allow mic access or use text fallback');
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true },
+      });
+      stream.getTracks().forEach((track) => track.stop());
+    } catch (error) {
+      const reason = error instanceof DOMException ? error.name : '';
+      if (reason === 'NotAllowedError' || reason === 'SecurityError') {
+        setToast('Microphone access is blocked — allow it in browser site settings, then try again');
+      } else if (reason === 'NotFoundError' || reason === 'DevicesNotFoundError') {
+        setToast('No microphone was found — connect one or use text fallback');
+      } else {
+        setToast('Microphone could not start — check browser permissions and try again');
+      }
+      return;
+    }
+
     keepListeningRef.current = true;
     setIsListening(true);
     addMessage('agent', responseCopy[language].listening);
@@ -243,7 +266,9 @@ function Home() {
     try {
       recognitionRef.current.start();
     } catch {
-      setToast('The microphone is already warming up');
+      keepListeningRef.current = false;
+      setIsListening(false);
+      setToast('The microphone is already in use — try again in a moment');
     }
   };
 
@@ -335,6 +360,14 @@ function Home() {
         keepListeningRef.current = false;
         setIsListening(false);
         setToast('Microphone access is blocked — use text fallback');
+      } else if (event.error === 'audio-capture') {
+        keepListeningRef.current = false;
+        setIsListening(false);
+        setToast('No microphone input was detected — check your mic and try again');
+      } else if (event.error === 'language-not-supported') {
+        keepListeningRef.current = false;
+        setIsListening(false);
+        setToast('This browser does not support the selected voice language');
       } else {
         setToast('Voice input had a hiccup — keep speaking or try again');
       }
