@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "BuyQK Voice Shopping Agent"
+description = "An interactive voice-shopping agent MVP for BuyQK that lets customers search products, manage a cart, preview actions, confirm purchases, and follow the agent's conversational orchestration in real time."
+version = "1.0.0"
+id = "artifacts/buyqk-voice-agent"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25929
+
+[services.development]
+run = "pnpm --filter @workspace/buyqk-voice-agent run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/buyqk-voice-agent", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/buyqk-voice-agent/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25929"
+BASE_PATH = "/"
