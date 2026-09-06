@@ -262,9 +262,27 @@ function Home() {
       };
       const lower = clean.toLowerCase();
       const currentLanguage = languageRef.current;
-      if (lower.includes('headphone') || lower.includes('flight') || lower.includes('quiet')) {
+      const normalizedRequest = lower.replace(/[^a-z0-9]+/g, '');
+      const productMatch = products.find((product) => {
+        const normalizedName = product.name.toLowerCase().replace(/[^a-z0-9]+/g, '');
+        const productWords = product.name.toLowerCase().split(/\s+/).filter((word) => word.length > 3);
+        return normalizedRequest.includes(normalizedName) || productWords.some((word) => lower.includes(word));
+      });
+
+      if (productMatch) {
+        setResultProducts([productMatch]);
+        setSearchTerm(productMatch.name);
+        if (currentLanguage === 'hindi') {
+          respond(`${productMatch.name} आपके लिए shelf पर दिखा दिया है। आप इसे cart में add कर सकती हैं।`);
+        } else if (currentLanguage === 'hinglish') {
+          respond(`${productMatch.name} shelf par dikha diya hai. Aap ise cart mein add kar sakti hain.`);
+        } else {
+          respond(`${productMatch.name} is now showing on the shelf. You can add it to your cart when you’re ready.`);
+        }
+      } else if (lower.includes('headphone') || lower.includes('flight') || lower.includes('quiet')) {
         respond(responseCopy[currentLanguage].headphone);
         setSearchTerm('comfortable noise-canceling headphones');
+        setResultProducts(products.filter((product) => product.id === 'quietcore'));
       } else if (lower.includes('cart') || lower.includes('checkout')) {
         respond(responseCopy[currentLanguage].cart);
         setCheckoutRequested(true);
