@@ -105,18 +105,18 @@ const responseCopy: Record<
     fallback: 'Got it. I’ll use that as context while I narrow down the next best options.',
   },
   hindi: {
-    listening: 'मैं सुन रही हूँ। अपनी ज़रूरत अपने शब्दों में बताइए।',
-    paused: 'मैंने सेशन रोक दिया है। जारी रखने के लिए सिग्नल दबाइए।',
-    headphone: 'आपके लिए QuietCore Studio अच्छा विकल्प लगता है। मैंने आपका ₹20,000 का बजट और आराम की पसंद ध्यान में रखी है।',
-    cart: 'आपका कार्ट तैयार है। ऑर्डर देने से पहले मैं आपकी अनुमति लूँगी।',
-    fallback: 'समझ गई। अगले बेहतर विकल्प खोजते समय मैं इसे आपके संदर्भ में रखूँगी।',
+    listening: 'मैं सुन रही हूँ। अपनी ज़रूरत के बारे में बताइए।',
+    paused: 'मैंने सेशन रोक दिया है। दोबारा शुरू करने के लिए माइक बटन दबाइए।',
+    headphone: 'QuietCore Studio आपके लिए एक अच्छा विकल्प है। मैंने आपका ₹20,000 का बजट और आराम की पसंद ध्यान में रखी है।',
+    cart: 'आपका कार्ट तैयार है। ऑर्डर करने से पहले मैं आपकी अनुमति लूँगी।',
+    fallback: 'समझ गई। अगले बेहतर विकल्प ढूँढ़ते समय मैं इस जानकारी को ध्यान में रखूँगी।',
   },
   hinglish: {
-    listening: 'Main sun rahi hoon. Aap apni need naturally bataiye.',
-    paused: 'Maine session pause kar diya hai. Continue karne ke liye signal tap kijiye.',
-    headphone: 'QuietCore Studio aapke liye strong match lag raha hai. Aapka ₹20,000 budget aur comfort preference maine yaad rakhi hai.',
-    cart: 'Aapka cart ready hai. Order place karne se pehle main aapki confirmation loongi.',
-    fallback: 'Samajh gayi. Agle best options shortlist karte waqt main is context ko yaad rakhungi.',
+    listening: 'Main sun rahi hoon. Aap apni zaroorat ke baare mein bataiye.',
+    paused: 'Maine session pause kar diya hai. Dobara shuru karne ke liye mic button tap kijiye.',
+    headphone: 'QuietCore Studio aapke liye ek accha option hai. Aapka ₹20,000 ka budget aur comfort preference maine note kar li hai.',
+    cart: 'Aapka cart ready hai. Order place karne se pehle main aapki permission loongi.',
+    fallback: 'Samajh gayi. Agle best options dhoondhte waqt main is information ko dhyan mein rakhungi.',
   },
 };
 
@@ -277,9 +277,9 @@ function Home() {
         setResultProducts([productMatch]);
         setSearchTerm(productMatch.name);
         if (currentLanguage === 'hindi') {
-          respond(`${productMatch.name} आपके लिए shelf पर दिखा दिया है। आप इसे cart में add कर सकती हैं।`);
+          respond(`${productMatch.name} आपके लिए शेल्फ पर दिखा दिया है। आप इसे कार्ट में जोड़ सकती हैं।`);
         } else if (currentLanguage === 'hinglish') {
-          respond(`${productMatch.name} shelf par dikha diya hai. Aap ise cart mein add kar sakti hain.`);
+          respond(`${productMatch.name} shelf par show kar diya hai. Aap ise cart mein add kar sakti hain.`);
         } else {
           respond(`${productMatch.name} is now showing on the shelf. You can add it to your cart when you’re ready.`);
         }
