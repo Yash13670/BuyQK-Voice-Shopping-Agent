@@ -32,6 +32,7 @@ import NotFound from '@/pages/not-found';
 import { Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
 
 type Role = 'agent' | 'you';
+type VoiceLanguage = 'english' | 'hindi' | 'hinglish';
 
 type Product = {
   id: string;
@@ -84,6 +85,39 @@ type BrowserRecognition = {
 type SpeechWindow = Window & {
   SpeechRecognition?: new () => BrowserRecognition;
   webkitSpeechRecognition?: new () => BrowserRecognition;
+};
+
+const voiceLanguages: Record<VoiceLanguage, { label: string; speechLang: string }> = {
+  english: { label: 'English', speechLang: 'en-IN' },
+  hindi: { label: 'हिन्दी', speechLang: 'hi-IN' },
+  hinglish: { label: 'Hinglish', speechLang: 'en-IN' },
+};
+
+const responseCopy: Record<
+  VoiceLanguage,
+  { listening: string; paused: string; headphone: string; cart: string; fallback: string }
+> = {
+  english: {
+    listening: 'I’m listening. Tell me what you need, in your own words.',
+    paused: 'I’ve paused the session. Tap the signal when you’re ready to continue.',
+    headphone: 'That sounds like the QuietCore Studio match I remembered. I’ve kept your $250 ceiling and comfort preference in view.',
+    cart: 'Your cart is ready. I’ll ask before placing any order.',
+    fallback: 'Got it. I’ll use that as context while I narrow down the next best options.',
+  },
+  hindi: {
+    listening: 'मैं सुन रहा हूँ। अपनी ज़रूरत अपने शब्दों में बताइए।',
+    paused: 'मैंने सेशन रोक दिया है। जारी रखने के लिए सिग्नल दबाइए।',
+    headphone: 'आपके लिए QuietCore Studio अच्छा विकल्प लगता है। मैंने आपका ₹20,000 का बजट और आराम की पसंद ध्यान में रखी है।',
+    cart: 'आपका कार्ट तैयार है। ऑर्डर देने से पहले मैं आपकी अनुमति लूँगा।',
+    fallback: 'समझ गया। अगले बेहतर विकल्प खोजते समय मैं इसे आपके संदर्भ में रखूँगा।',
+  },
+  hinglish: {
+    listening: 'Main sun raha hoon. Aap apni need naturally bataiye.',
+    paused: 'Maine session pause kar diya hai. Continue karne ke liye signal tap kijiye.',
+    headphone: 'QuietCore Studio aapke liye strong match lag raha hai. Aapka ₹20,000 budget aur comfort preference yaad rakha hai.',
+    cart: 'Aapka cart ready hai. Order place karne se pehle main aapki confirmation loonga.',
+    fallback: 'Got it. Agle best options shortlist karte waqt main is context ko yaad rakhunga.',
+  },
 };
 
 const queryClient = new QueryClient();
@@ -173,6 +207,7 @@ function Home() {
   const [isListening, setIsListening] = useState(false);
   const [interimTranscript, setInterimTranscript] = useState('');
   const [speechSupported, setSpeechSupported] = useState(true);
+  const [language, setLanguage] = useState<VoiceLanguage>('english');
   const [draft, setDraft] = useState('');
   const [searchTerm, setSearchTerm] = useState('comfortable noise-canceling headphones');
   const [searching, setSearching] = useState(false);
@@ -185,6 +220,7 @@ function Home() {
   const [toast, setToast] = useState('');
   const recognitionRef = useRef<BrowserRecognition | null>(null);
   const keepListeningRef = useRef(false);
+  const languageRef = useRef<VoiceLanguage>('english');
 
   const cartCount = useMemo(() => cart.reduce((sum, item) => sum + item.quantity, 0), [cart]);
   const cartTotal = useMemo(
@@ -209,7 +245,7 @@ function Home() {
       setIsListening(false);
       setInterimTranscript('');
       window.speechSynthesis?.cancel();
-      addMessage('agent', 'I’ve paused the session. Tap the signal when you’re ready to continue.');
+      addMessage('agent', responseCopy[language].paused);
       setToast('Voice session paused');
       return;
     }
@@ -219,7 +255,7 @@ function Home() {
     }
     keepListeningRef.current = true;
     setIsListening(true);
-    addMessage('agent', 'I’m listening. Tell me what you need, in your own words.');
+    addMessage('agent', responseCopy[language].listening);
     setToast('BuyQK is listening');
     try {
       recognitionRef.current.start();
@@ -239,22 +275,22 @@ function Home() {
         if (fromVoice) {
           window.speechSynthesis?.cancel();
           const utterance = new SpeechSynthesisUtterance(text);
+          utterance.lang = voiceLanguages[languageRef.current].speechLang;
           utterance.rate = 1.03;
           utterance.pitch = 1;
           window.speechSynthesis?.speak(utterance);
         }
       };
       const lower = clean.toLowerCase();
+      const currentLanguage = languageRef.current;
       if (lower.includes('headphone') || lower.includes('flight') || lower.includes('quiet')) {
-        respond(
-          'That sounds like the QuietCore Studio match I remembered. I’ve kept your $250 ceiling and comfort preference in view.',
-        );
+        respond(responseCopy[currentLanguage].headphone);
         setSearchTerm('comfortable noise-canceling headphones');
       } else if (lower.includes('cart') || lower.includes('checkout')) {
-        respond('Your cart is ready. I’ll ask before placing any order.');
+        respond(responseCopy[currentLanguage].cart);
         setCheckoutRequested(true);
       } else {
-        respond('Got it. I’ll use that as context while I narrow down the next best options.');
+        respond(responseCopy[currentLanguage].fallback);
       }
     }, fromVoice ? 280 : 420);
   };
@@ -272,7 +308,7 @@ function Home() {
     const recognition = new recognitionConstructor();
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.lang = 'en-IN';
+    recognition.lang = voiceLanguages[language].speechLang;
     recognition.onresult = (event) => {
       let interim = '';
       let finalText = '';
@@ -319,6 +355,15 @@ function Home() {
       window.speechSynthesis?.cancel();
     };
   }, []);
+
+  const changeLanguage = (nextLanguage: VoiceLanguage) => {
+    languageRef.current = nextLanguage;
+    setLanguage(nextLanguage);
+    if (recognitionRef.current) {
+      recognitionRef.current.lang = voiceLanguages[nextLanguage].speechLang;
+    }
+    setToast(`${voiceLanguages[nextLanguage].label} voice selected`);
+  };
 
   const runSearch = () => {
     if (!searchTerm.trim()) {
@@ -441,6 +486,19 @@ function Home() {
             </div>
           </div>
           <div className="flex items-center gap-2.5">
+            <div className="language-switcher flex items-center gap-1 rounded-full border border-[#dce1ec] bg-white/65 p-1" role="group" aria-label="Voice language">
+              {(Object.keys(voiceLanguages) as VoiceLanguage[]).map((option) => (
+                <button
+                  className={`language-option rounded-full px-2.5 py-1.5 text-[10px] font-bold ${language === option ? 'active' : ''}`}
+                  data-testid={`button-language-${option}`}
+                  key={option}
+                  onClick={() => changeLanguage(option)}
+                  type="button"
+                >
+                  {voiceLanguages[option].label}
+                </button>
+              ))}
+            </div>
             <div className="hidden items-center gap-2 rounded-full border border-[#dce1ec] bg-white/65 px-3 py-1.5 text-[10px] font-bold text-[#657087] sm:flex">
               <span className="signal-dot scale-75" />
               {speechSupported ? 'LIVE AUDIO READY' : 'TEXT FALLBACK'}
@@ -453,6 +511,8 @@ function Home() {
           toggleListening={toggleListening}
           interimTranscript={interimTranscript}
           speechSupported={speechSupported}
+          language={language}
+          onLanguageChange={changeLanguage}
           messages={messages}
           draft={draft}
           setDraft={setDraft}
@@ -486,6 +546,8 @@ type WorkspaceProps = {
   toggleListening: () => void;
   interimTranscript: string;
   speechSupported: boolean;
+  language: VoiceLanguage;
+  onLanguageChange: (language: VoiceLanguage) => void;
   messages: Message[];
   draft: string;
   setDraft: (value: string) => void;

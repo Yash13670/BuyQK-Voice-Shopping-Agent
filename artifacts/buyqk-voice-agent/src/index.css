@@ -511,6 +511,27 @@ button {
   backdrop-filter: blur(16px);
 }
 
+.language-switcher {
+  box-shadow: 0 3px 12px rgba(32,36,58,0.04);
+}
+
+.language-option {
+  color: #7a8299;
+  transition: color 160ms ease, background-color 160ms ease, transform 160ms ease;
+}
+
+.language-option:hover {
+  color: #236e5a;
+  background: #effcf7;
+  transform: translateY(-1px);
+}
+
+.language-option.active {
+  color: #1f5949;
+  background: #d9f8ed;
+  box-shadow: 0 2px 6px rgba(28,162,125,0.12);
+}
+
 .eyebrow {
   color: #7a8299;
   font: 500 10px/1 var(--app-font-mono);
