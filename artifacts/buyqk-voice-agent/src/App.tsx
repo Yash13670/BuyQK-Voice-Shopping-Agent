@@ -277,9 +277,9 @@ function Home() {
         setResultProducts([productMatch]);
         setSearchTerm(productMatch.name);
         if (currentLanguage === 'hindi') {
-          respond(`${productMatch.name} आपके लिए शेल्फ पर दिखा दिया है। आप इसे कार्ट में जोड़ सकती हैं।`);
+          respond(`${productMatch.name} आपके लिए शेल्फ पर दिखा दिया है। आप इसे कार्ट में जोड़ सकते हैं।`);
         } else if (currentLanguage === 'hinglish') {
-          respond(`${productMatch.name} shelf par show kar diya hai. Aap ise cart mein add kar sakti hain.`);
+          respond(`${productMatch.name} shelf par show kar diya hai. Aap ise cart mein add kar sakte hain.`);
         } else {
           respond(`${productMatch.name} is now showing on the shelf. You can add it to your cart when you’re ready.`);
         }
