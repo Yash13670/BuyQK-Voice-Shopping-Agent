@@ -105,18 +105,18 @@ const responseCopy: Record<
     fallback: 'Got it. I’ll use that as context while I narrow down the next best options.',
   },
   hindi: {
-    listening: 'मैं सुन रहा हूँ। अपनी ज़रूरत अपने शब्दों में बताइए।',
+    listening: 'मैं सुन रही हूँ। अपनी ज़रूरत अपने शब्दों में बताइए।',
     paused: 'मैंने सेशन रोक दिया है। जारी रखने के लिए सिग्नल दबाइए।',
     headphone: 'आपके लिए QuietCore Studio अच्छा विकल्प लगता है। मैंने आपका ₹20,000 का बजट और आराम की पसंद ध्यान में रखी है।',
-    cart: 'आपका कार्ट तैयार है। ऑर्डर देने से पहले मैं आपकी अनुमति लूँगा।',
-    fallback: 'समझ गया। अगले बेहतर विकल्प खोजते समय मैं इसे आपके संदर्भ में रखूँगा।',
+    cart: 'आपका कार्ट तैयार है। ऑर्डर देने से पहले मैं आपकी अनुमति लूँगी।',
+    fallback: 'समझ गई। अगले बेहतर विकल्प खोजते समय मैं इसे आपके संदर्भ में रखूँगी।',
   },
   hinglish: {
-    listening: 'Main sun raha hoon. Aap apni need naturally bataiye.',
+    listening: 'Main sun rahi hoon. Aap apni need naturally bataiye.',
     paused: 'Maine session pause kar diya hai. Continue karne ke liye signal tap kijiye.',
-    headphone: 'QuietCore Studio aapke liye strong match lag raha hai. Aapka ₹20,000 budget aur comfort preference yaad rakha hai.',
-    cart: 'Aapka cart ready hai. Order place karne se pehle main aapki confirmation loonga.',
-    fallback: 'Got it. Agle best options shortlist karte waqt main is context ko yaad rakhunga.',
+    headphone: 'QuietCore Studio aapke liye strong match lag raha hai. Aapka ₹20,000 budget aur comfort preference maine yaad rakhi hai.',
+    cart: 'Aapka cart ready hai. Order place karne se pehle main aapki confirmation loongi.',
+    fallback: 'Samajh gayi. Agle best options shortlist karte waqt main is context ko yaad rakhungi.',
   },
 };
 
