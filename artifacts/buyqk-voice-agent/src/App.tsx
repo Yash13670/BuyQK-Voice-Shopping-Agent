@@ -152,27 +152,6 @@ const products: Product[] = [
   },
 ];
 
-const initialMessages: Message[] = [
-  {
-    id: 1,
-    role: 'agent',
-    text: 'Good morning. I’m ready when you are. What are we shopping for today?',
-    time: '09:41',
-  },
-  {
-    id: 2,
-    role: 'you',
-    text: 'I need something for long flights — comfortable, quiet, and under $250.',
-    time: '09:42',
-  },
-  {
-    id: 3,
-    role: 'agent',
-    text: 'I’ll keep that in mind. I found a few strong fits and ranked them by comfort first.',
-    time: '09:42',
-  },
-];
-
 function formatPrice(value: number) {
   return `$${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
@@ -209,12 +188,12 @@ function Home() {
   const [speechSupported, setSpeechSupported] = useState(true);
   const [language, setLanguage] = useState<VoiceLanguage>('english');
   const [draft, setDraft] = useState('');
-  const [searchTerm, setSearchTerm] = useState('comfortable noise-canceling headphones');
+  const [searchTerm, setSearchTerm] = useState('');
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState('');
   const [resultProducts, setResultProducts] = useState<Product[]>(products);
-  const [messages, setMessages] = useState<Message[]>(initialMessages);
-  const [cart, setCart] = useState<CartItem[]>([{ product: products[0], quantity: 1 }]);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [cart, setCart] = useState<CartItem[]>([]);
   const [checkoutRequested, setCheckoutRequested] = useState(false);
   const [orderConfirmed, setOrderConfirmed] = useState(false);
   const [toast, setToast] = useState('');
@@ -436,6 +415,9 @@ function Home() {
     window.speechSynthesis?.cancel();
     setMessages([]);
     setCart([]);
+    setSearchTerm('');
+    setResultProducts(products);
+    setSearchError('');
     setCheckoutRequested(false);
     setOrderConfirmed(false);
     setToast('Session cleared');
