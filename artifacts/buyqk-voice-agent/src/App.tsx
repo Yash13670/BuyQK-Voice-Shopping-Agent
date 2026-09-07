@@ -204,6 +204,9 @@ function Home() {
   const recognitionRef = useRef<BrowserRecognition | null>(null);
   const keepListeningRef = useRef(false);
   const languageRef = useRef<VoiceLanguage>('english');
+  const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
+  const ttsObjectUrlRef = useRef('');
+  const ttsRequestRef = useRef(0);
 
   const cartCount = useMemo(() => cart.reduce((sum, item) => sum + item.quantity, 0), [cart]);
   const cartTotal = useMemo(
@@ -221,13 +224,67 @@ function Home() {
     setMessages((current) => [...current, { id: Date.now(), role, text, time: nowTime() }]);
   };
 
+  const stopGeneratedSpeech = () => {
+    ttsRequestRef.current += 1;
+    ttsAudioRef.current?.pause();
+    ttsAudioRef.current = null;
+    if (ttsObjectUrlRef.current) {
+      URL.revokeObjectURL(ttsObjectUrlRef.current);
+      ttsObjectUrlRef.current = '';
+    }
+    window.speechSynthesis?.cancel();
+  };
+
+  const speakWithGemini = async (text: string) => {
+    stopGeneratedSpeech();
+    const requestId = ttsRequestRef.current;
+
+    try {
+      const response = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+
+      if (!response.ok || requestId !== ttsRequestRef.current) {
+        throw new Error('Gemini TTS request failed');
+      }
+
+      const audioUrl = URL.createObjectURL(await response.blob());
+      if (requestId !== ttsRequestRef.current) {
+        URL.revokeObjectURL(audioUrl);
+        return;
+      }
+
+      const audio = new Audio(audioUrl);
+      ttsAudioRef.current = audio;
+      ttsObjectUrlRef.current = audioUrl;
+      audio.onended = () => {
+        if (ttsObjectUrlRef.current === audioUrl) {
+          URL.revokeObjectURL(audioUrl);
+          ttsObjectUrlRef.current = '';
+          ttsAudioRef.current = null;
+        }
+      };
+      await audio.play();
+    } catch {
+      if (requestId !== ttsRequestRef.current) return;
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = voiceLanguages[languageRef.current].speechLang;
+      utterance.rate = 1.03;
+      utterance.pitch = 1;
+      window.speechSynthesis?.speak(utterance);
+      setToast('Gemini voice unavailable — using browser fallback');
+    }
+  };
+
   const toggleListening = () => {
     if (isListening) {
       keepListeningRef.current = false;
       recognitionRef.current?.stop();
       setIsListening(false);
       setInterimTranscript('');
-      window.speechSynthesis?.cancel();
+      stopGeneratedSpeech();
       addMessage('agent', responseCopy[language].paused);
       setToast('Voice session paused');
       return;
@@ -259,12 +316,7 @@ function Home() {
       const respond = (text: string, speechText = text) => {
         addMessage('agent', text);
         if (fromVoice) {
-          window.speechSynthesis?.cancel();
-          const utterance = new SpeechSynthesisUtterance(speechText);
-          utterance.lang = voiceLanguages[languageRef.current].speechLang;
-          utterance.rate = 1.03;
-          utterance.pitch = 1;
-          window.speechSynthesis?.speak(utterance);
+          void speakWithGemini(speechText);
         }
       };
       const lower = clean.toLowerCase();
@@ -367,7 +419,7 @@ function Home() {
     return () => {
       keepListeningRef.current = false;
       recognition.stop();
-      window.speechSynthesis?.cancel();
+      stopGeneratedSpeech();
     };
   }, []);
 
@@ -448,7 +500,7 @@ function Home() {
     recognitionRef.current?.stop();
     setIsListening(false);
     setInterimTranscript('');
-    window.speechSynthesis?.cancel();
+    stopGeneratedSpeech();
     setMessages([]);
     setCart([]);
     setSearchTerm('');
@@ -642,7 +694,7 @@ function WorkspaceView(props: WorkspaceProps) {
             <div className="relative z-[1] mt-7 flex flex-wrap items-center gap-2 border-t border-white/10 pt-4 text-[10px] text-[#98a2bd]">
               <span className="flex items-center gap-1.5"><ShieldCheck size={12} className="text-[#70e7c2]" /> Confirmation gates on</span>
               <span className="text-[#626b87]">·</span>
-              <span className="flex items-center gap-1.5"><Volume2 size={12} /> {props.speechSupported ? 'Voice replies on' : 'Text fallback ready'}</span>
+              <span className="flex items-center gap-1.5"><Volume2 size={12} /> {props.speechSupported ? 'Gemini voice + browser fallback' : 'Text fallback ready'}</span>
             </div>
           </section>
 

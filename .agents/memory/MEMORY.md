@@ -1,0 +1,1 @@
+- [Gemini voice output](gemini-tts.md) — direct Gemini TTS is used when managed AI setup is unavailable; provider PCM must be wrapped as WAV for browser playback.
