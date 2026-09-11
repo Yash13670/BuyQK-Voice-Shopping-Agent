@@ -207,6 +207,7 @@ function Home() {
   const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
   const ttsObjectUrlRef = useRef('');
   const ttsRequestRef = useRef(0);
+  const isSpeakingRef = useRef(false);
 
   const cartCount = useMemo(() => cart.reduce((sum, item) => sum + item.quantity, 0), [cart]);
   const cartTotal = useMemo(
@@ -225,6 +226,7 @@ function Home() {
   };
 
   const stopGeneratedSpeech = () => {
+    isSpeakingRef.current = false;
     ttsRequestRef.current += 1;
     ttsAudioRef.current?.pause();
     ttsAudioRef.current = null;
@@ -238,6 +240,8 @@ function Home() {
   const speakWithGemini = async (text: string) => {
     stopGeneratedSpeech();
     const requestId = ttsRequestRef.current;
+    isSpeakingRef.current = true;
+    setToast('BuyQK is generating audio...');
 
     try {
       const response = await fetch('/api/tts', {
@@ -265,6 +269,12 @@ function Home() {
           ttsObjectUrlRef.current = '';
           ttsAudioRef.current = null;
         }
+        window.setTimeout(() => {
+          isSpeakingRef.current = false;
+        }, 500);
+      };
+      audio.onerror = () => {
+        isSpeakingRef.current = false;
       };
       await audio.play();
     } catch {
@@ -273,6 +283,14 @@ function Home() {
       utterance.lang = voiceLanguages[languageRef.current].speechLang;
       utterance.rate = 1.03;
       utterance.pitch = 1;
+      utterance.onend = () => {
+        window.setTimeout(() => {
+          isSpeakingRef.current = false;
+        }, 500);
+      };
+      utterance.onerror = () => {
+        isSpeakingRef.current = false;
+      };
       window.speechSynthesis?.speak(utterance);
       setToast('Gemini voice unavailable — using browser fallback');
     }
@@ -312,46 +330,44 @@ function Home() {
     if (!clean) return;
     addMessage('you', clean);
     setDraft('');
-    window.setTimeout(() => {
-      const respond = (text: string, speechText = text) => {
-        addMessage('agent', text);
-        if (fromVoice) {
-          void speakWithGemini(speechText);
-        }
-      };
-      const lower = clean.toLowerCase();
-      const currentLanguage = languageRef.current;
-      const normalizedRequest = lower.replace(/[^a-z0-9]+/g, '');
-      const productMatch = products.find((product) => {
-        const normalizedName = product.name.toLowerCase().replace(/[^a-z0-9]+/g, '');
-        const productWords = product.name.toLowerCase().split(/\s+/).filter((word) => word.length > 3);
-        return normalizedRequest.includes(normalizedName) || productWords.some((word) => lower.includes(word));
-      });
-
-      if (productMatch) {
-        setResultProducts([productMatch]);
-        setSearchTerm(productMatch.name);
-        if (currentLanguage === 'hindi') {
-          respond(`${productMatch.name} आपके लिए शेल्फ पर दिखा दिया है। आप इसे कार्ट में जोड़ सकते हैं।`);
-        } else if (currentLanguage === 'hinglish') {
-          respond(
-            `${productMatch.name} shelf par show kar diya hai. Aap ise cart mein add kar sakte hain.`,
-            `${productMatch.name} शेल्फ पर शो कर दिया है। आप इसे कार्ट में ऐड कर सकते हैं।`,
-          );
-        } else {
-          respond(`${productMatch.name} is now showing on the shelf. You can add it to your cart when you’re ready.`);
-        }
-      } else if (lower.includes('headphone') || lower.includes('flight') || lower.includes('quiet')) {
-        respond(responseCopy[currentLanguage].headphone);
-        setSearchTerm('comfortable noise-canceling headphones');
-        setResultProducts(products.filter((product) => product.id === 'quietcore'));
-      } else if (lower.includes('cart') || lower.includes('checkout')) {
-        respond(responseCopy[currentLanguage].cart);
-        setCheckoutRequested(true);
-      } else {
-        respond(responseCopy[currentLanguage].fallback);
+    const respond = (text: string, speechText = text) => {
+      addMessage('agent', text);
+      if (fromVoice) {
+        void speakWithGemini(speechText);
       }
-    }, fromVoice ? 280 : 420);
+    };
+    const lower = clean.toLowerCase();
+    const currentLanguage = languageRef.current;
+    const normalizedRequest = lower.replace(/[^a-z0-9]+/g, '');
+    const productMatch = products.find((product) => {
+      const normalizedName = product.name.toLowerCase().replace(/[^a-z0-9]+/g, '');
+      const productWords = product.name.toLowerCase().split(/\s+/).filter((word) => word.length > 3);
+      return normalizedRequest.includes(normalizedName) || productWords.some((word) => lower.includes(word));
+    });
+
+    if (productMatch) {
+      setResultProducts([productMatch]);
+      setSearchTerm(productMatch.name);
+      if (currentLanguage === 'hindi') {
+        respond(`${productMatch.name} आपके लिए शेल्फ पर दिखा दिया है। आप इसे कार्ट में जोड़ सकते हैं।`);
+      } else if (currentLanguage === 'hinglish') {
+        respond(
+          `${productMatch.name} shelf par show kar diya hai. Aap ise cart mein add kar sakte hain.`,
+          `${productMatch.name} शेल्फ पर शो कर दिया है। आप इसे कार्ट में ऐड कर सकते हैं।`,
+        );
+      } else {
+        respond(`${productMatch.name} is now showing on the shelf. You can add it to your cart when you’re ready.`);
+      }
+    } else if (lower.includes('headphone') || lower.includes('flight') || lower.includes('quiet')) {
+      respond(responseCopy[currentLanguage].headphone);
+      setSearchTerm('comfortable noise-canceling headphones');
+      setResultProducts(products.filter((product) => product.id === 'quietcore'));
+    } else if (lower.includes('cart') || lower.includes('checkout')) {
+      respond(responseCopy[currentLanguage].cart);
+      setCheckoutRequested(true);
+    } else {
+      respond(responseCopy[currentLanguage].fallback);
+    }
   };
 
   useEffect(() => {
@@ -369,6 +385,10 @@ function Home() {
     recognition.interimResults = true;
     recognition.lang = voiceLanguages[language].recognitionLang;
     recognition.onresult = (event) => {
+      if (isSpeakingRef.current) {
+        setInterimTranscript('');
+        return;
+      }
       let interim = '';
       let finalText = '';
 
@@ -381,11 +401,22 @@ function Home() {
 
       setInterimTranscript(interim.trim());
       if (finalText.trim()) {
+        const textToSend = finalText.trim();
         setInterimTranscript('');
-        sendMessage(finalText, true);
+        // Stop microphone immediately so laptop speaker audio is never re-captured!
+        isSpeakingRef.current = true;
+        keepListeningRef.current = false;
+        setIsListening(false);
+        try {
+          recognition.stop();
+        } catch {}
+        sendMessage(textToSend, true);
       }
     };
     recognition.onerror = (event) => {
+      if (event.error === 'no-speech' || event.error === 'aborted') {
+        return;
+      }
       if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
         keepListeningRef.current = false;
         setIsListening(false);
